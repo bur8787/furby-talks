@@ -1,0 +1,170 @@
+import pyaudio
+import webrtcvad
+import openai
+import requests
+import json
+import subprocess
+import wave
+from google.cloud import speech
+from os import environ
+import asyncio
+
+# OpenAI APIキーの設定
+openai.api_key = environ["OPENAI_API_KEY"]
+
+# VOICEVOXエンジンのAPIエンドポイント
+VOICEVOX_API_URL = "http://localhost:50021"
+
+# 音声録音設定
+RATE = 16000  # サンプリングレート
+FRAME_DURATION_MS = 20  # フレーム長（ms）
+CHUNK = int(RATE * FRAME_DURATION_MS / 1000)  # フレームサイズ
+
+# PyAudioとVADの初期化
+audio = pyaudio.PyAudio()
+vad = webrtcvad.Vad(3)  # 感度を0（低）から3（高）まで調整可能
+
+# Google Speech-to-Text クライアントの初期化
+speech_client = speech.SpeechClient()
+
+# 録音の開始
+def start_recording():
+    stream = audio.open(format=pyaudio.paInt16, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    frames = []
+    silence_duration = 0
+    threshold_silence_frames = 80  # 例えば30フレーム以上無音であれば喋り終わりと判断
+
+    print("Listening for voice...")
+
+    while True:
+        data = stream.read(CHUNK)
+        frames.append(data)
+
+        # VADで音声を検知（サンプルをフレームとして処理）
+        try:
+            is_speech = vad.is_speech(data, RATE)
+        except webrtcvad.VadError as e:
+            print(f"Error while processing frame: {e}")
+            continue
+
+        if is_speech:
+            silence_duration = 0  # 喋りが続いている間はリセット
+        else:
+            silence_duration += 1
+
+        # 一定時間の無音が続いたら録音を終了
+        if silence_duration > threshold_silence_frames:
+            print("Silence detected, stopping recording...")
+            break
+
+    stream.stop_stream()
+    stream.close()
+
+    return b''.join(frames)
+
+# 録音データを保存
+def save_wav_file(audio_data, filename="input.wav"):
+    wf = wave.open(filename, 'wb')
+    wf.setnchannels(1)
+    wf.setsampwidth(audio.get_sample_size(pyaudio.paInt16))
+    wf.setframerate(RATE)
+    wf.writeframes(audio_data)
+    wf.close()
+
+# OpenAI ChatGPT APIで質問
+async def get_chatgpt_response(text):
+    client = openai.AsyncOpenAI()
+    completion = await client.chat.completions.create(model="gpt-3.5-turbo", messages=[
+        {"role": "system", "content": "あなたはファービーというぬいぐるみが喋るようになったキャラクターです。たかひろ、ちひろ、そうた、あきとと友達です。"},
+        {"role": "user", "content": text}
+    ])
+    return completion.choices[0].message.content
+
+# VOICEVOXで音声を生成
+def generate_voice(text):
+    # 1. 音声合成用のクエリを作成
+    query_payload = {
+        "text": text,
+        "speaker": 1  # 話者ID（例: 1は四国めたん）
+    }
+
+    query_response = requests.post(f"{VOICEVOX_API_URL}/audio_query", params=query_payload)
+    if query_response.status_code != 200:
+        print("Failed to generate audio query.")
+        return None
+
+    synthesis_payload = query_response.json()
+    synthesis_response = requests.post(
+        f"{VOICEVOX_API_URL}/synthesis",
+        params={"speaker": 1},
+        data=json.dumps(synthesis_payload),
+        headers={"Content-Type": "application/json"}
+    )
+
+    if synthesis_response.status_code != 200:
+        print("Failed to synthesize voice.")
+        return None
+
+    audio_file = "output.wav"
+    with open(audio_file, "wb") as f:
+        f.write(synthesis_response.content)
+
+    return audio_file
+
+# 音声を再生
+def play_voice(audio_file):
+    subprocess.run(["afplay", audio_file])  # Macの場合（LinuxやWindowsでは適宜変更）
+
+# Google Speech-to-Text APIで音声をテキストに変換
+def recognize_speech_google(audio_data):
+    # WAVファイルとして保存された音声データを開く
+    with open("input.wav", "rb") as audio_file:
+        content = audio_file.read()
+
+    # 音声認識の設定
+    audio = speech.RecognitionAudio(content=content)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=RATE,
+        language_code="ja-JP",  # 日本語認識を指定
+    )
+
+    # 音声認識リクエスト
+    response = speech_client.recognize(config=config, audio=audio)
+
+    # 音声認識の結果を返す
+    for result in response.results:
+        return result.alternatives[0].transcript
+
+    return None
+
+# 会話ループ
+async def conversation_loop():
+    while True:
+        # 1. 録音開始
+        audio_data = start_recording()
+        save_wav_file(audio_data, "input.wav")
+
+        # 2. 音声認識（Google Speech-to-Text）
+        recognized_text = recognize_speech_google(audio_data)
+        print(f"Recognized Text: {recognized_text}")
+
+        # 「終了」や「ストップ」と言った場合は会話を終了
+        if recognized_text.lower() in ["終了", "ストップ", "終わり"]:
+            print("Conversation ended.")
+            break
+
+        # 3. ChatGPTに質問を投げる
+        response = await get_chatgpt_response(recognized_text)
+        print(f"ChatGPT Response: {response}")
+
+        # 4. ChatGPTの応答をVOICEVOXで音声生成
+        audio_file = generate_voice(response)
+
+        # 5. 生成した音声を再生
+        if audio_file:
+            play_voice(audio_file)
+
+# メインフロー
+if __name__ == "__main__":
+    asyncio.run(conversation_loop())  # 非同期関数を実行
