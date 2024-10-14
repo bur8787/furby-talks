@@ -12,8 +12,8 @@ import asyncio
 # OpenAI APIキーの設定
 openai.api_key = environ["OPENAI_API_KEY"]
 
-# VOICEVOXエンジンのAPIエンドポイント
-VOICEVOX_API_URL = "http://localhost:50021"
+# VOICEVOX LambdaのAPIエンドポイント（環境変数から取得）
+VOICEVOX_API_URL = environ["VOICEVOX_API_URL"]
 
 # 音声録音設定
 RATE = 16000  # サンプリングレート
@@ -75,39 +75,24 @@ def save_wav_file(audio_data, filename="input.wav"):
 async def get_chatgpt_response(text):
     client = openai.AsyncOpenAI()
     completion = await client.chat.completions.create(model="gpt-3.5-turbo", messages=[
-        {"role": "system", "content": "あなたはファービーというぬいぐるみが喋るようになったキャラクターです。たかひろ、ちひろ、そうた、あきとと友達です。"},
+        {"role": "system", "content": "あなたはファービーというぬいぐるみが喋るようになったキャラクターです。たかひろ、ちひろ、そうた、あきとと友達です。30文字程度で話してね。"},
         {"role": "user", "content": text}
     ])
     return completion.choices[0].message.content
 
-# VOICEVOXで音声を生成
+# VOICEVOX Lambdaで音声を生成
 def generate_voice(text):
-    # 1. 音声合成用のクエリを作成
-    query_payload = {
-        "text": text,
-        "speaker": 1  # 話者ID（例: 1は四国めたん）
-    }
+    # Lambda関数にリクエストを送信して音声を生成
+    response = requests.post(VOICEVOX_API_URL, data={"text": text})
 
-    query_response = requests.post(f"{VOICEVOX_API_URL}/audio_query", params=query_payload)
-    if query_response.status_code != 200:
-        print("Failed to generate audio query.")
+    if response.status_code != 200:
+        print("Failed to generate voice via Lambda.")
         return None
 
-    synthesis_payload = query_response.json()
-    synthesis_response = requests.post(
-        f"{VOICEVOX_API_URL}/synthesis",
-        params={"speaker": 1},
-        data=json.dumps(synthesis_payload),
-        headers={"Content-Type": "application/json"}
-    )
-
-    if synthesis_response.status_code != 200:
-        print("Failed to synthesize voice.")
-        return None
-
-    audio_file = "output.wav"
+    # MP3ファイルのバイナリデータを保存
+    audio_file = "output.mp3"
     with open(audio_file, "wb") as f:
-        f.write(synthesis_response.content)
+        f.write(response.content)
 
     return audio_file
 
@@ -158,7 +143,7 @@ async def conversation_loop():
         response = await get_chatgpt_response(recognized_text)
         print(f"ChatGPT Response: {response}")
 
-        # 4. ChatGPTの応答をVOICEVOXで音声生成
+        # 4. ChatGPTの応答をVOICEVOX Lambdaで音声生成
         audio_file = generate_voice(response)
 
         # 5. 生成した音声を再生
