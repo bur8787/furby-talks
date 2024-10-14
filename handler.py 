@@ -98,7 +98,7 @@ def generate_voice(text):
 
 # 音声を再生
 def play_voice(audio_file):
-    subprocess.run(["afplay", audio_file])  # Macの場合（LinuxやWindowsでは適宜変更）
+    subprocess.run(["aplay", audio_file])  # Raspberry Piで音声を再生する
 
 # Google Speech-to-Text APIで音声をテキストに変換
 def recognize_speech_google(audio_data):
