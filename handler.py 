@@ -98,7 +98,7 @@ def generate_voice(text):
 
 # 音声を再生
 def play_voice(audio_file):
-    subprocess.run(["aplay", "-r", "16000", audio_file])  # サンプリングレート16000Hzを指定して再生
+    subprocess.run(["mpg123", audio_file])  # Raspberry PiでMP3ファイルを再生する
 
 # Google Speech-to-Text APIで音声をテキストに変換
 def recognize_speech_google(audio_data):
