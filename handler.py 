@@ -1,8 +1,8 @@
+import RPi.GPIO as GPIO
 import pyaudio
 import webrtcvad
 import openai
 import requests
-import json
 import subprocess
 import wave
 from google.cloud import speech
@@ -15,6 +15,11 @@ openai.api_key = environ["OPENAI_API_KEY"]
 # VOICEVOX LambdaのAPIエンドポイント（環境変数から取得）
 VOICEVOX_API_URL = environ["VOICEVOX_API_URL"]
 
+# GPIO設定
+MOTOR_PIN = 17  # GPIOピン番号を指定（例：17番ピン）
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(MOTOR_PIN, GPIO.OUT)
+
 # 音声録音設定
 RATE = 16000  # サンプリングレート
 FRAME_DURATION_MS = 20  # フレーム長（ms）
@@ -26,6 +31,16 @@ vad = webrtcvad.Vad(3)  # 感度を0（低）から3（高）まで調整可能
 
 # Google Speech-to-Text クライアントの初期化
 speech_client = speech.SpeechClient()
+
+# モーターをオンにする
+def start_motor():
+    print("モーターをオンにします...")
+    GPIO.output(MOTOR_PIN, GPIO.HIGH)  # モーターに電力を供給
+
+# モーターをオフにする
+def stop_motor():
+    print("モーターをオフにします...")
+    GPIO.output(MOTOR_PIN, GPIO.LOW)  # モーターへの電力供給を停止
 
 # 録音の開始
 def start_recording():
@@ -98,7 +113,9 @@ def generate_voice(text):
 
 # 音声を再生
 def play_voice(audio_file):
+    start_motor()  # 音声再生前にモーターをオン
     subprocess.run(["mpg123", audio_file])  # Raspberry PiでMP3ファイルを再生する
+    stop_motor()  # 音声再生後にモーターをオフ
 
 # Google Speech-to-Text APIで音声をテキストに変換
 def recognize_speech_google(audio_data):
@@ -152,4 +169,7 @@ async def conversation_loop():
 
 # メインフロー
 if __name__ == "__main__":
-    asyncio.run(conversation_loop())  # 非同期関数を実行
+    try:
+        asyncio.run(conversation_loop())  # 非同期関数を実行
+    finally:
+        GPIO.cleanup()  # 終了時にGPIOをクリーンアップ
