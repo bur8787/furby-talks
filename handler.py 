@@ -34,7 +34,7 @@ vad = webrtcvad.Vad(3)  # 感度を0（低）から3（高）まで調整可能
 porcupine = pvporcupine.create(
     access_key=environ["PICOVOICE_ACCESS_KEY"],  # Picovoice Consoleで取得したアクセスキー
     keyword_paths=[environ["PICOVOICE_KEYWORD_PATH"]],  # "プリン"のウェイクワードモデルのファイルパス
-    model_path=pvporcupine.MODEL_PATH['ja']  # 日本語の言語モデルを指定
+    model_path=environ["PICOVOICE_MODEL_PATH"]
 )
 
 # Google Speech-to-Text クライアントの初期化
