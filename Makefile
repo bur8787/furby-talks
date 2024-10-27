@@ -10,7 +10,7 @@ PYTHON_EXEC=$(VENV_PATH)/bin/python
 ENV_SH=./env.sh
 
 .PHONY: install
-install: setup_audio_group create_env_file create_service_file enable_service
+install: setup_audio_group create_env_file create_service_file enable_service configure_alsa
 
 # audioグループへの追加
 .PHONY: setup_audio_group
@@ -40,7 +40,7 @@ create_service_file:
 	echo "WorkingDirectory=$(LOCAL_REPO)" | sudo tee -a $(SERVICE_FILE)
 	echo "StandardOutput=inherit" | sudo tee -a $(SERVICE_FILE)
 	echo "StandardError=inherit" | sudo tee -a $(SERVICE_FILE)
-	echo "Restart=always" | sudo tee -a $(SERVICE_FILE)
+	echo "Restart=no" | sudo tee -a $(SERVICE_FILE)  # リスタートを無効化
 	echo "User=$(EXEC_USER)" | sudo tee -a $(SERVICE_FILE)
 	echo "[Install]" | sudo tee -a $(SERVICE_FILE)
 	echo "WantedBy=multi-user.target" | sudo tee -a $(SERVICE_FILE)
@@ -52,6 +52,19 @@ enable_service:
 	sudo systemctl enable $(SERVICE_NAME)
 	sudo systemctl start $(SERVICE_NAME)
 
+# ALSAの設定
+.PHONY: configure_alsa
+configure_alsa:
+	@echo "Configuring ALSA to use external audio devices..."
+	echo "pcm.!default {" | sudo tee /etc/asound.conf
+	echo "    type hw" | sudo tee -a /etc/asound.conf
+	echo "    card 1" | sudo tee -a /etc/asound.conf
+	echo "}" | sudo tee -a /etc/asound.conf
+	echo "ctl.!default {" | sudo tee -a /etc/asound.conf
+	echo "    type hw" | sudo tee -a /etc/asound.conf
+	echo "    card 1" | sudo tee -a /etc/asound.conf
+	echo "}" | sudo tee -a /etc/asound.conf
+
 # クリーンアップ
 .PHONY: clean
 clean:
@@ -59,4 +72,5 @@ clean:
 	sudo systemctl stop $(SERVICE_NAME) || true
 	sudo systemctl disable $(SERVICE_NAME) || true
 	sudo rm -f $(SERVICE_FILE) $(ENV_FILE)
+	sudo rm -f $(SERVICE_FILE) $(ENV_FILE) /etc/asound.conf
 	sudo systemctl daemon-reload
