@@ -33,11 +33,13 @@ vad = webrtcvad.Vad(3)  # 感度を0（低）から3（高）まで調整可能
 # Porcupineの初期化
 porcupine = pvporcupine.create(
     access_key=environ["PICOVOICE_ACCESS_KEY"],  # Picovoice Consoleで取得したアクセスキー
-    keyword_paths=[environ["PICOVOICE_KEYWORD_PATH"]]  # "プリン"のウェイクワードモデルのファイルパス
+    keyword_paths=[environ["PICOVOICE_KEYWORD_PATH"]],  # "プリン"のウェイクワードモデルのファイルパス
+    model_path=pvporcupine.MODEL_PATH['ja']  # 日本語の言語モデルを指定
 )
 
 # Google Speech-to-Text クライアントの初期化
 speech_client = speech.SpeechClient()
+
 
 # モーターをオンにする
 def start_motor():
@@ -148,12 +150,8 @@ def recognize_speech_google(audio_data):
     return None
 
 
-wake_word_detected = False
-
-
 # Porcupineでウェイクワードを待機
 def wait_for_wakeword():
-    global wake_word_detected
     stream = audio.open(
         rate=porcupine.sample_rate,
         channels=1,
@@ -168,7 +166,6 @@ def wait_for_wakeword():
         pcm = [int.from_bytes(pcm[i:i+2], 'little') for i in range(0, len(pcm), 2)]
         if porcupine.process(pcm) >= 0:
             print("Wake word detected!")
-            wake_word_detected = True
             break
 
     stream.stop_stream()
@@ -180,8 +177,7 @@ async def conversation_loop():
     while True:
         wait_for_wakeword()
 
-        while wake_word_detected:
-            global wake_word_detected
+        while True:
             # 1. 録音開始
             audio_data = start_recording()
             save_wav_file(audio_data, "input.wav")
