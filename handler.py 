@@ -177,6 +177,10 @@ async def conversation_loop():
     while True:
         wait_for_wakeword()
 
+        audio_file = generate_voice("何？呼んだ？")
+        if audio_file:
+            play_voice(audio_file)
+
         while True:
             # 1. 録音開始
             audio_data = start_recording()
@@ -191,14 +195,14 @@ async def conversation_loop():
                 audio_file = generate_voice(response_text)
                 if audio_file:
                     play_voice(audio_file)
-                continue
+                break
 
             if recognized_text.lower() in ["バイバイ", "ばいばい"]:
                 response_text = "バイバイ、またね。また喋りたくなったら「プリン」って僕の名前を読んでね。"
                 audio_file = generate_voice(response_text)
                 if audio_file:
                     play_voice(audio_file)
-                continue  # Wakewordを再度待つ
+                break  # Wakewordを再度待つ
 
             # 3. ChatGPTに質問を投げる
             response = await get_chatgpt_response(recognized_text)
