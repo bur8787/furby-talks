@@ -9,6 +9,7 @@ from google.cloud import speech
 from os import environ
 import asyncio
 import pvporcupine
+from collections import deque
 
 # OpenAI APIキーの設定
 openai.api_key = environ["OPENAI_API_KEY"]
@@ -40,6 +41,10 @@ porcupine = pvporcupine.create(
 # Google Speech-to-Text クライアントの初期化
 speech_client = speech.SpeechClient()
 
+# 最大20件の履歴を保持するためのキュー（FIFO）
+conversation_history = deque(maxlen=20)
+
+persona = {"role": "system", "content": "あなたはファービーというぬいぐるみのおもちゃで、魔法の力で喋るようになりました。名前はプリンです。たかひろ、ちひろ、そうた、あきとと友達です。50文字程度で話してね。"}
 
 # モーターをオンにする
 def start_motor():
@@ -97,12 +102,16 @@ def save_wav_file(audio_data, filename="input.wav"):
 
 # OpenAI ChatGPT APIで質問
 async def get_chatgpt_response(text):
+    conversation_history.append({"role": "user", "content": text})
+
+    messages = [persona] + conversation_history  # パーソナと過去の会話を合わせて送信
     client = openai.AsyncOpenAI()
-    completion = await client.chat.completions.create(model="gpt-3.5-turbo", messages=[
-        {"role": "system", "content": "あなたはファービーというぬいぐるみが喋るようになったキャラクターです。たかひろ、ちひろ、そうた、あきとと友達です。30文字程度で話してね。"},
-        {"role": "user", "content": text}
-    ])
-    return completion.choices[0].message.content
+    completion = await client.chat.completions.create(model="gpt-3.5-turbo", messages=messages, max_tokens=100,
+                                                      temperature=0.7)
+
+    response_text = completion.choices[0].message.content
+    conversation_history.append({"role": "assistant", "content": response_text})
+    return response_text
 
 # VOICEVOX Lambdaで音声を生成
 def generate_voice(text):
@@ -179,6 +188,7 @@ async def conversation_loop():
         play_voice(audio_file)
 
     while True:
+        conversation_history.clear()  # 会話履歴をクリア
         wait_for_wakeword()
 
         audio_file = generate_voice("何？")
