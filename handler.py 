@@ -181,7 +181,7 @@ async def conversation_loop():
     while True:
         wait_for_wakeword()
 
-        audio_file = generate_voice("何？呼んだ？")
+        audio_file = generate_voice("何？")
         if audio_file:
             play_voice(audio_file)
 
@@ -195,14 +195,14 @@ async def conversation_loop():
             print(f"Recognized Text: {recognized_text}")
 
             if recognized_text is None:
-                response_text = "お返事がないから寝るね。また喋りたくなったら「プリン」って僕の名前を読んでね。"
+                response_text = "お返事がないから寝るね。また喋りたくなったら「プリン」って呼んでね。"
                 audio_file = generate_voice(response_text)
                 if audio_file:
                     play_voice(audio_file)
                 break
 
             if "バイバイ" in recognized_text.lower():
-                response_text = "バイバイ、またね。また喋りたくなったら「プリン」って僕の名前を読んでね。"
+                response_text = "バイバイ、またね。また喋りたくなったら「プリン」って呼んでね"
                 audio_file = generate_voice(response_text)
                 if audio_file:
                     play_voice(audio_file)
