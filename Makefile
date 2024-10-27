@@ -1,8 +1,9 @@
+LOCAL_REPO=/home/bur8787/dev/furby-talks
 SERVICE_NAME=furby-talks.service
 SERVICE_FILE=/etc/systemd/system/$(SERVICE_NAME)
 ENV_FILE=/etc/furby_talks_env_vars
-VENV_PATH=/home/pi/dev/furby-talks/.venv
-PYTHON_SCRIPT=/home/pi/dev/furby-talks
+VENV_PATH=$(LOCAL_REPO)/.venv
+PYTHON_SCRIPT=$(LOCAL_REPO)/handle.py
 PYTHON_EXEC=$(VENV_PATH)/bin/python
 
 ENV_SH=./env.sh
