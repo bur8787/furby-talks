@@ -8,6 +8,7 @@ import wave
 from google.cloud import speech
 from os import environ
 import asyncio
+import pvporcupine
 
 # OpenAI APIキーの設定
 openai.api_key = environ["OPENAI_API_KEY"]
@@ -28,6 +29,12 @@ CHUNK = int(RATE * FRAME_DURATION_MS / 1000)  # フレームサイズ
 # PyAudioとVADの初期化
 audio = pyaudio.PyAudio()
 vad = webrtcvad.Vad(3)  # 感度を0（低）から3（高）まで調整可能
+
+# Porcupineの初期化
+porcupine = pvporcupine.create(
+    access_key=environ["PICOVOICE_ACCESS_KEY"],  # Picovoice Consoleで取得したアクセスキー
+    keyword_paths=[environ["PICOVOICE_KEYWORD_PATH"]]  # "プリン"のウェイクワードモデルのファイルパス
+)
 
 # Google Speech-to-Text クライアントの初期化
 speech_client = speech.SpeechClient()
@@ -140,36 +147,78 @@ def recognize_speech_google(audio_data):
 
     return None
 
+
+wake_word_detected = False
+
+
+# Porcupineでウェイクワードを待機
+def wait_for_wakeword():
+    global wake_word_detected
+    stream = audio.open(
+        rate=porcupine.sample_rate,
+        channels=1,
+        format=pyaudio.paInt16,
+        input=True,
+        frames_per_buffer=porcupine.frame_length
+    )
+
+    print("Waiting for wake word...")
+    while True:
+        pcm = stream.read(porcupine.frame_length)
+        pcm = [int.from_bytes(pcm[i:i+2], 'little') for i in range(0, len(pcm), 2)]
+        if porcupine.process(pcm) >= 0:
+            print("Wake word detected!")
+            wake_word_detected = True
+            break
+
+    stream.stop_stream()
+    stream.close()
+
+
 # 会話ループ
 async def conversation_loop():
     while True:
-        # 1. 録音開始
-        audio_data = start_recording()
-        save_wav_file(audio_data, "input.wav")
+        wait_for_wakeword()
 
-        # 2. 音声認識（Google Speech-to-Text）
-        recognized_text = recognize_speech_google(audio_data)
-        print(f"Recognized Text: {recognized_text}")
+        while wake_word_detected:
+            global wake_word_detected
+            # 1. 録音開始
+            audio_data = start_recording()
+            save_wav_file(audio_data, "input.wav")
 
-        # 「終了」や「ストップ」と言った場合は会話を終了
-        if recognized_text.lower() in ["終了", "ストップ", "終わり"]:
-            print("Conversation ended.")
-            break
+            # 2. 音声認識（Google Speech-to-Text）
+            recognized_text = recognize_speech_google(audio_data)
+            print(f"Recognized Text: {recognized_text}")
 
-        # 3. ChatGPTに質問を投げる
-        response = await get_chatgpt_response(recognized_text)
-        print(f"ChatGPT Response: {response}")
+            if recognized_text is None:
+                response_text = "お返事がないから寝るね。また喋りたくなったら「プリン」って僕の名前を読んでね。"
+                audio_file = generate_voice(response_text)
+                if audio_file:
+                    play_voice(audio_file)
+                continue
 
-        # 4. ChatGPTの応答をVOICEVOX Lambdaで音声生成
-        audio_file = generate_voice(response)
+            if recognized_text.lower() in ["バイバイ", "ばいばい"]:
+                response_text = "バイバイ、またね。また喋りたくなったら「プリン」って僕の名前を読んでね。"
+                audio_file = generate_voice(response_text)
+                if audio_file:
+                    play_voice(audio_file)
+                continue  # Wakewordを再度待つ
 
-        # 5. 生成した音声を再生
-        if audio_file:
-            play_voice(audio_file)
+            # 3. ChatGPTに質問を投げる
+            response = await get_chatgpt_response(recognized_text)
+            print(f"ChatGPT Response: {response}")
+
+            # 4. ChatGPTの応答をVOICEVOX Lambdaで音声生成
+            audio_file = generate_voice(response)
+
+            # 5. 生成した音声を再生
+            if audio_file:
+                play_voice(audio_file)
 
 # メインフロー
 if __name__ == "__main__":
     try:
         asyncio.run(conversation_loop())  # 非同期関数を実行
     finally:
+        porcupine.delete()
         GPIO.cleanup()  # 終了時にGPIOをクリーンアップ

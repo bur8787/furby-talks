@@ -4,3 +4,4 @@ webrtcvad
 openai
 requests
 RPi.GPIO
+pvporcupine
