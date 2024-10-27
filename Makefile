@@ -1,4 +1,5 @@
-LOCAL_REPO=/home/bur8787/dev/furby-talks
+EXEC_USER=bur8787
+LOCAL_REPO=/home/$(EXEC_USER)/dev/furby-talks
 SERVICE_NAME=furby-talks.service
 SERVICE_FILE=/etc/systemd/system/$(SERVICE_NAME)
 ENV_FILE=/etc/furby_talks_env_vars
@@ -27,11 +28,11 @@ create_service_file:
 	echo "[Service]" | sudo tee -a $(SERVICE_FILE)
 	echo "EnvironmentFile=$(ENV_FILE)" | sudo tee -a $(SERVICE_FILE)
 	echo "ExecStart=$(PYTHON_EXEC) $(PYTHON_SCRIPT)" | sudo tee -a $(SERVICE_FILE)
-	echo "WorkingDirectory=/home/pi/dev/furby-talks" | sudo tee -a $(SERVICE_FILE)
+	echo "WorkingDirectory=$(LOCAL_REPO)" | sudo tee -a $(SERVICE_FILE)
 	echo "StandardOutput=inherit" | sudo tee -a $(SERVICE_FILE)
 	echo "StandardError=inherit" | sudo tee -a $(SERVICE_FILE)
 	echo "Restart=always" | sudo tee -a $(SERVICE_FILE)
-	echo "User=pi" | sudo tee -a $(SERVICE_FILE)
+	echo "User=$(EXEC_USER)" | sudo tee -a $(SERVICE_FILE)
 	echo "[Install]" | sudo tee -a $(SERVICE_FILE)
 	echo "WantedBy=multi-user.target" | sudo tee -a $(SERVICE_FILE)
 
