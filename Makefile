@@ -40,7 +40,10 @@ create_service_file:
 	echo "StandardOutput=inherit" | sudo tee -a $(SERVICE_FILE)
 	echo "StandardError=inherit" | sudo tee -a $(SERVICE_FILE)
 	echo "Restart=no" | sudo tee -a $(SERVICE_FILE)  # リスタートを無効化
-	echo "User=$(EXEC_USER)" | sudo tee -a $(SERVICE_FILE)
+	echo "UMask=0002" | sudo tee -a $(SERVICE_FILE)
+	echo "LimitNOFILE=1024" | sudo tee -a $(SERVICE_FILE)
+	echo "DeviceAllow=/dev/snd/* rw" | sudo tee -a $(SERVICE_FILE)
+	echo "PAMName=login" | sudo tee -a $(SERVICE_FILE)
 	echo "[Install]" | sudo tee -a $(SERVICE_FILE)
 	echo "WantedBy=multi-user.target" | sudo tee -a $(SERVICE_FILE)
 
