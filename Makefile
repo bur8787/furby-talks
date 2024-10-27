@@ -58,7 +58,7 @@ configure_alsa:
 	@echo "Configuring ALSA to use external audio devices..."
 	echo "pcm.!default {" | sudo tee /etc/asound.conf
 	echo "    type hw" | sudo tee -a /etc/asound.conf
-	echo "    card 1" | sudo tee -a /etc/asound.conf
+	echo "    card 2" | sudo tee -a /etc/asound.conf
 	echo "}" | sudo tee -a /etc/asound.conf
 	echo "ctl.!default {" | sudo tee -a /etc/asound.conf
 	echo "    type hw" | sudo tee -a /etc/asound.conf
