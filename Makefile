@@ -10,7 +10,13 @@ PYTHON_EXEC=$(VENV_PATH)/bin/python
 ENV_SH=./env.sh
 
 .PHONY: install
-install: create_env_file create_service_file enable_service
+install: setup_audio_group create_env_file create_service_file enable_service
+
+# audioグループへの追加
+.PHONY: setup_audio_group
+setup_audio_group:
+	@echo "Adding '$(EXEC_USER)' user to 'audio' group..."
+	sudo usermod -aG audio $(EXEC_USER)
 
 # env.shの内容をそのままENV_FILEにコピー
 .PHONY: create_env_file
@@ -26,6 +32,9 @@ create_service_file:
 	echo "Description=Furby Talks Program" | sudo tee -a $(SERVICE_FILE)
 	echo "After=network.target" | sudo tee -a $(SERVICE_FILE)
 	echo "[Service]" | sudo tee -a $(SERVICE_FILE)
+	echo "[Service]" | sudo tee -a $(SERVICE_FILE)
+	echo "User=$(EXEC_USER)" | sudo tee -a $(SERVICE_FILE)
+	echo "Group=audio" | sudo tee -a $(SERVICE_FILE)
 	echo "EnvironmentFile=$(ENV_FILE)" | sudo tee -a $(SERVICE_FILE)
 	echo "ExecStart=$(PYTHON_EXEC) $(PYTHON_SCRIPT)" | sudo tee -a $(SERVICE_FILE)
 	echo "WorkingDirectory=$(LOCAL_REPO)" | sudo tee -a $(SERVICE_FILE)
