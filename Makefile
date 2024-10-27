@@ -4,7 +4,7 @@ SERVICE_NAME=furby-talks.service
 SERVICE_FILE=/etc/systemd/system/$(SERVICE_NAME)
 ENV_FILE=/etc/furby_talks_env_vars
 VENV_PATH=$(LOCAL_REPO)/.venv
-PYTHON_SCRIPT=$(LOCAL_REPO)/handle.py
+PYTHON_SCRIPT=$(LOCAL_REPO)/handler.py
 PYTHON_EXEC=$(VENV_PATH)/bin/python
 
 ENV_SH=./env.sh
